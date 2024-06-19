@@ -2,12 +2,13 @@
 name = "web-message"
 version = "0.1.0"
 description = ""
-authors = ["Your Name <you@example.com>"]
+authors = ["Fernando Fraga"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
 fastapi = "^0.111.0"
+redis = "^5.0.6"
 
 
 [build-system]
