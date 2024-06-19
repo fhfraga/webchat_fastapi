@@ -1,53 +1,35 @@
-import logging
-from typing import Dict, List
+import json
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+import redis
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
 
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-logging.basicConfig(level=logging.INFO)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-messages: Dict[str, List[Dict[str, str]]] = {}
+r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 
-class Message(BaseModel):
-    sender: str
-    receiver: str
-    content: str
-
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 async def get(request: Request):
-    logging.info("Serving index.html")
     return templates.TemplateResponse("index.html", {"request": request})
 
-@app.post("/send/")
-async def send_message(message: Message):
-    logging.info(f"Received message from {message.sender} to {message.receiver}: {message.content}")
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    
+    chat_id = "default_chat"
+    
+    messages = [json.loads(msg) for msg in r.lrange(chat_id, 0, -1)]
+    await websocket.send_text(json.dumps({"messages": messages}))
+    
+    while True:
+        data = await websocket.receive_text()
+        message = json.loads(data)
+        
+        r.lpush(chat_id, json.dumps(message))
 
-    if message.sender not in messages:
-        messages[message.sender] = []
-    if message.receiver not in messages:
-        messages[message.receiver] = []
-
-    messages[message.receiver].append({
-        "from": message.sender,
-        "content": message.content
-    })
-    return {"status": "Message sent"}
-
-@app.get("/receive/{user}/")
-async def receive_messages(user: str):
-    logging.info(f"Retrieving messages for {user}")
-
-    if user not in messages:
-        messages[user] = []
-
-    user_messages = messages[user]
-    #messages[user] = []  # Limpar mensagens depois de recebidas
-    return {"messages": user_messages}
+        await websocket.send_text(json.dumps(message))
