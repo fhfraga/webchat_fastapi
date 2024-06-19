@@ -1,93 +1,43 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chat com FastAPI</title>
+    <title>Chat em Tempo - Fast API + Redis</title>
     <link rel="stylesheet" type="text/css" href="/static/style.css">
 </head>
 <body>
-    <h1>Chat com FastAPI</h1>
-    <div id="chat-container">
-        <div id="messages">
-            <!-- Messages will be displayed here -->
-        </div>
-        <div id="send-message">
-            <input type="text" id="sender" placeholder="Remetente">
-            <input type="text" id="receiver" placeholder="Destinatário">
-            <input type="text" id="content" placeholder="Mensagem">
-            <button onclick="sendMessage()">Enviar</button>
-        </div>
+    <h1>Chat em Tempo - Fast API + Redis</h1>
+    <div id="chat">
+        <div id="messages"></div>
+        <input type="text" id="messageInput" placeholder="Digite sua mensagem...">
+        <button onclick="sendMessage()">Enviar</button>
     </div>
 
     <script>
-        async function sendMessage() {
-            const sender = document.getElementById('sender').value;
-            const receiver = document.getElementById('receiver').value;
-            const content = document.getElementById('content').value;
-
-            if (!sender || !receiver || !content) {
-                alert("Please fill in all fields");
-                return;
-            }
-
-            try {
-                const response = await fetch('/send/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ sender, receiver, content })
-                });
-
-                const result = await response.json();
-                if (response.ok) {
-                    alert(result.status);
-                    document.getElementById('content').value = '';  // Clear the message input
-                } else {
-                    console.error(result);
-                    alert("Error: " + result.detail);
-                }
-            } catch (error) {
-                console.error(error);
-                alert("An error occurred while sending the message");
-            }
-        }
-
-        async function receiveMessages(user) {
-            if (!user) {
-                alert("Please enter a receiver to check messages");
-                return;
-            }
-
-            try {
-                const response = await fetch(`/receive/${user}/`);
-                const data = await response.json();
-
-                if (!response.ok) {
-                    console.error(data);
-                    alert("Error: " + data.detail);
-                    return;
-                }
-
-                const messagesDiv = document.getElementById('messages');
+        const ws = new WebSocket("ws://localhost:8000/ws");
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            const messagesDiv = document.getElementById("messages");
+            if (data.messages) {
                 messagesDiv.innerHTML = '';
-
                 data.messages.forEach(message => {
-                    const messageElement = document.createElement('div');
-                    messageElement.textContent = `${message.from}: ${message.content}`;
+                    const messageElement = document.createElement("div");
+                    messageElement.textContent = message.text;
                     messagesDiv.appendChild(messageElement);
                 });
-            } catch (error) {
-                console.error(error);
-                alert("An error occurred while receiving messages");
+            } else {
+                const messageElement = document.createElement("div");
+                messageElement.textContent = data.text;
+                messagesDiv.appendChild(messageElement);
             }
-        }
+        };
 
-        setInterval(() => {
-            const receiver = document.getElementById('receiver').value;
-            if (receiver) {
-                receiveMessages(receiver);
-            }
-        }, 3000);
+        function sendMessage() {
+            const input = document.getElementById("messageInput");
+            const message = input.value;
+            ws.send(JSON.stringify({ chat_id: "default_chat", text: message }));
+            input.value = '';
+        }
     </script>
 </body>
 </html>
